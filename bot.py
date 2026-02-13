@@ -70,7 +70,7 @@ def get_games_list_keyboard(action_prefix: str) -> InlineKeyboardMarkup:
 ADD_NAME, ADD_TEXT, ADD_PHOTO, ADD_FILE = range(4)
 EDIT_ACTION, EDIT_TEXT, EDIT_PHOTO, EDIT_FILE = range(4, 8)
 
-# ------------------- HANDLERLAR -------------------
+# ------------------- FOYDALANUVCHI HANDLERLARI -------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         "🎰 *WinWin Bukmekeriga xush kelibsiz!*\n\n"
@@ -118,7 +118,7 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if file_id:
         await query.message.reply_document(document=file_id)
 
-# ------------------- ADMIN PANEL -------------------
+# ------------------- ADMIN PANEL (umumiy callbacklar) -------------------
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         await update.message.reply_text("Siz admin emassiz.")
@@ -126,6 +126,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👨‍💻 Admin paneli:", reply_markup=get_admin_keyboard())
 
 async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin panelidagi barcha callbacklarni boshqaradi (admin_add dan tashqari)."""
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
@@ -134,12 +135,7 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     data = query.data
 
-    if data == "admin_add":
-        context.user_data["add_game"] = {}
-        await query.edit_message_text("Yangi o‘yin nomini kiriting:")
-        return ADD_NAME
-
-    elif data == "admin_remove_list":
+    if data == "admin_remove_list":
         if not games_data:
             await query.edit_message_text("Hech qanday o‘yin mavjud emas.")
             return
@@ -213,23 +209,25 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
             f"'{game_name}' – nimani tahrirlaysiz?",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        return EDIT_ACTION
+        # Bu yerda EDIT_ACTION holatiga o‘tish kerak, lekin bu conversation handler orqali amalga oshiriladi.
+        # Aslida, bu callback "edit_text", "edit_photo" va "edit_file" larni chaqiradi, ular alohida conversation entry_points.
 
-    elif data == "edit_text":
-        await query.edit_message_text("Yangi matnni kiriting (HTML teglar bilan):")
-        return EDIT_TEXT
+    # Qolgan holatlar conversation handlerlar tomonidan boshqariladi
+    return
 
-    elif data == "edit_photo":
-        await query.edit_message_text("Yangi rasmni yuboring (reply orqali):")
-        return EDIT_PHOTO
+# ------------------- ADD GAME KONVERSATSIYASI (entry point) -------------------
+async def admin_add_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Add Game tugmasi bosilganda ishga tushadi."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        await query.edit_message_text("Siz admin emassiz.")
+        return ConversationHandler.END
 
-    elif data == "edit_file":
-        await query.edit_message_text("Yangi faylni (APK) yuboring (reply orqali):")
-        return EDIT_FILE
+    context.user_data["add_game"] = {}
+    await query.edit_message_text("Yangi o‘yin nomini kiriting:")
+    return ADD_NAME
 
-    return ConversationHandler.END
-
-# ------------------- ADD GAME KONVERSATSIYASI -------------------
 async def add_game_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = update.message.text.strip()
     if name in games_data:
@@ -305,7 +303,25 @@ async def add_game_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Qo‘shish bekor qilindi.", reply_markup=get_admin_keyboard())
     return ConversationHandler.END
 
-# ------------------- EDIT GAME KONVERSATSIYASI -------------------
+# ------------------- EDIT GAME KONVERSATSIYASI (entry points) -------------------
+async def edit_text_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("Yangi matnni kiriting (HTML teglar bilan):")
+    return EDIT_TEXT
+
+async def edit_photo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("Yangi rasmni yuboring (reply orqali):")
+    return EDIT_PHOTO
+
+async def edit_file_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("Yangi faylni (APK) yuboring (reply orqali):")
+    return EDIT_FILE
+
 async def edit_game_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     game_name = context.user_data["edit_game"]
     new_text = update.message.text
@@ -355,11 +371,13 @@ def main():
     app.add_handler(CommandHandler("admin", admin_panel))
     app.add_handler(CallbackQueryHandler(show_games, pattern="^show_games$"))
     app.add_handler(CallbackQueryHandler(game_callback, pattern="^game_"))
-    app.add_handler(CallbackQueryHandler(admin_callback_handler, pattern="^(admin_|remove_|edit_|confirm_remove)"))
+    
+    # Admin panel uchun callback handler (add dan tashqari)
+    app.add_handler(CallbackQueryHandler(admin_callback_handler, pattern="^(admin_remove_list|admin_edit_list|admin_stats|admin_close|admin_back|remove_|edit_|confirm_remove)"))
 
     # Add game conversation
     add_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(admin_callback_handler, pattern="^admin_add$")],
+        entry_points=[CallbackQueryHandler(admin_add_callback, pattern="^admin_add$")],
         states={
             ADD_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_game_name)],
             ADD_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_game_text)],
@@ -376,18 +394,35 @@ def main():
     )
     app.add_handler(add_conv)
 
-    # Edit game conversation
-    edit_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(admin_callback_handler, pattern="^edit_text$|^edit_photo$|^edit_file$")],
+    # Edit game conversation (matn uchun)
+    edit_text_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(edit_text_callback, pattern="^edit_text$")],
         states={
             EDIT_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, edit_game_text)],
+        },
+        fallbacks=[CommandHandler("cancel", edit_cancel)],
+    )
+    app.add_handler(edit_text_conv)
+
+    # Edit game conversation (rasm uchun)
+    edit_photo_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(edit_photo_callback, pattern="^edit_photo$")],
+        states={
             EDIT_PHOTO: [MessageHandler(filters.PHOTO, edit_game_photo)],
+        },
+        fallbacks=[CommandHandler("cancel", edit_cancel)],
+    )
+    app.add_handler(edit_photo_conv)
+
+    # Edit game conversation (fayl uchun)
+    edit_file_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(edit_file_callback, pattern="^edit_file$")],
+        states={
             EDIT_FILE: [MessageHandler(filters.Document.ALL, edit_game_file)],
         },
         fallbacks=[CommandHandler("cancel", edit_cancel)],
-        map_to_parent={ConversationHandler.END: EDIT_ACTION}  # qaytish
     )
-    app.add_handler(edit_conv)
+    app.add_handler(edit_file_conv)
 
     logger.info("Bot ishga tushdi...")
     app.run_polling()
