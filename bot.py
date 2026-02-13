@@ -64,9 +64,12 @@ def is_admin(user_id: int) -> bool:
     return user_id == ADMIN_ID
 
 def get_game_keyboard() -> InlineKeyboardMarkup:
+    """O‘yinlar ro‘yxati + ortga qaytish tugmasi."""
     keyboard = []
     for game in games_data.keys():
         keyboard.append([InlineKeyboardButton(game, callback_data=f"game_{game}")])
+    # Ortga qaytish tugmasi (bosh menyu)
+    keyboard.append([InlineKeyboardButton("◀️ Bosh menyu", callback_data="main_menu")])
     return InlineKeyboardMarkup(keyboard)
 
 def get_admin_keyboard() -> InlineKeyboardMarkup:
@@ -87,12 +90,16 @@ def get_games_list_keyboard(action_prefix: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 def get_main_keyboard() -> InlineKeyboardMarkup:
-    """Asosiy menyu tugmalari (start xabarida ko'rinadi)."""
+    """Asosiy menyu tugmalari:
+       - 1-qator: O‘yinlar ro‘yxati
+       - 2-qator: Pul ishlash | Balans (yonma-yon)
+    """
     keyboard = [
-        [InlineKeyboardButton("✨ Shaffof tugma", callback_data="show_games")],
-        [InlineKeyboardButton("💰 Pul ishlash", callback_data="earn")],
-        [InlineKeyboardButton("💵 Balans", callback_data="balance")],
-        [InlineKeyboardButton("💸 Pul chiqarish", callback_data="withdraw")]
+        [InlineKeyboardButton("🎮 O‘yinlar ro‘yxati", callback_data="show_games")],
+        [
+            InlineKeyboardButton("💰 Pul ishlash", callback_data="earn"),
+            InlineKeyboardButton("💵 Balans", callback_data="balance")
+        ]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -176,13 +183,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📊 Slot o‘yinlarini analiz qilish\n"
         "💡 Qayerda, qachon va qanday g‘alaba qilish sirlari\n\n"
         "👇 Quyidagi tugmalardan foydalaning:\n\n"
-        "✨ *Shaffof tugma* – o‘yinlar ro‘yxati\n"
+        "🎮 *O‘yinlar ro‘yxati* – barcha o‘yinlarni ko‘rish\n"
         "💰 *Pul ishlash* – do‘stlaringizni taklif qiling va bonus oling\n"
-        "💵 *Balans* – hisobingizdagi mablag‘ni ko‘ring\n"
-        "💸 *Pul chiqarish* – mablag‘ni kartangizga yechib olish"
+        "💵 *Balans* – hisobingizdagi mablag‘ni ko‘ring va yechib oling"
     )
     await update.message.reply_text(
         text,
+        parse_mode="Markdown",
+        reply_markup=get_main_keyboard()
+    )
+
+# ------------------- BOSH MENYUGA QAYTISH -------------------
+async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text(
+        "🏠 *Bosh menyu*",
         parse_mode="Markdown",
         reply_markup=get_main_keyboard()
     )
@@ -192,7 +208,10 @@ async def show_games(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if not games_data:
-        await query.edit_message_text("Hozircha hech qanday o‘yin mavjud emas.")
+        await query.edit_message_text(
+            "Hozircha hech qanday o‘yin mavjud emas.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Bosh menyu", callback_data="main_menu")]])
+        )
         return
     text = "🎮 Quyidagi oyinlardan birini tanlang va pul ishlashni boshlang:"
     await query.edit_message_text(text, reply_markup=get_game_keyboard())
@@ -215,9 +234,13 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     button_text = game.get("button_text")
     button_url = game.get("button_url")
 
-    reply_markup = None
+    # Ortga qaytish tugmasi (o‘yinlar ro‘yxatiga)
+    back_button = [[InlineKeyboardButton("◀️ Orqaga", callback_data="show_games")]]
+    reply_markup = InlineKeyboardMarkup(back_button)
+
+    # Agar tashqi havola tugmasi bo‘lsa, uni ham qo‘shamiz
     if button_text and button_url:
-        keyboard = [[InlineKeyboardButton(button_text, url=button_url)]]
+        keyboard = [[InlineKeyboardButton(button_text, url=button_url)], back_button[0]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
     if photo_id:
@@ -254,7 +277,11 @@ async def earn_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Havolani do‘stlaringizga yuboring yoki quyidagi tugma orqali ulashing."
     )
     share_url = f"https://t.me/share/url?url={referral_link}&text=Bu%20bot%20orqali%20pul%20ishlash%20mumkin!%20Keling%2C%20birga%20boshlaymiz."
-    keyboard = [[InlineKeyboardButton("📤 Ulashish", url=share_url)]]
+    keyboard = [
+        [InlineKeyboardButton("📤 Ulashish", url=share_url)],
+        [InlineKeyboardButton("💸 Pul chiqarish", callback_data="withdraw")],
+        [InlineKeyboardButton("◀️ Bosh menyu", callback_data="main_menu")]
+    ]
     await query.edit_message_text(
         text,
         parse_mode="Markdown",
@@ -274,12 +301,23 @@ async def balance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Taklif qilgan do‘stlaringiz: *{referrals}*\n\n"
         f"Minimal yechish summasi: {MIN_WITHDRAW} so‘m."
     )
-    await query.edit_message_text(text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+    keyboard = [
+        [InlineKeyboardButton("💸 Pul chiqarish", callback_data="withdraw")],
+        [InlineKeyboardButton("◀️ Bosh menyu", callback_data="main_menu")]
+    ]
+    await query.edit_message_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 async def withdraw_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    keyboard = [[InlineKeyboardButton("💳 Pul chiqarish", url="https://test.com")]]
+    keyboard = [
+        [InlineKeyboardButton("💳 Pul chiqarish", url="https://test.com")],
+        [InlineKeyboardButton("◀️ Bosh menyu", callback_data="main_menu")]
+    ]
     await query.edit_message_text(
         "Pul yechish uchun quyidagi tugmani bosing:",
         reply_markup=InlineKeyboardMarkup(keyboard)
@@ -377,8 +415,6 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
             f"'{game_name}' – nimani tahrirlaysiz?",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        # Bu yerda EDIT_ACTION holatiga o‘tish kerak, lekin bu conversation handler orqali amalga oshiriladi.
-        # Aslida, bu callback "edit_text", "edit_photo", "edit_file", "edit_button" larni chaqiradi, ular alohida conversation entry_points.
 
     return
 
@@ -713,6 +749,7 @@ def main():
     app.add_handler(CallbackQueryHandler(earn_callback, pattern="^earn$"))
     app.add_handler(CallbackQueryHandler(balance_callback, pattern="^balance$"))
     app.add_handler(CallbackQueryHandler(withdraw_callback, pattern="^withdraw$"))
+    app.add_handler(CallbackQueryHandler(back_to_main, pattern="^main_menu$"))
 
     # Admin panel (umumiy callbacklar) – admin_add dan tashqari
     app.add_handler(CallbackQueryHandler(
