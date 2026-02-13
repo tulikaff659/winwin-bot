@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import traceback
 from pathlib import Path
 from typing import Dict
 
@@ -22,7 +23,7 @@ DATA_FILE = "games.json"
 
 # ------------------- LOGLASH -------------------
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.DEBUG
 )
 logger = logging.getLogger(__name__)
 
@@ -242,112 +243,165 @@ async def admin_add_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return ADD_NAME
 
 async def add_game_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    name = update.message.text.strip()
-    if name in games_data:
-        await update.message.reply_text("Bu nom allaqachon mavjud. Boshqa nom kiriting:")
-        return ADD_NAME
-    context.user_data["add_game"]["name"] = name
-    await update.message.reply_text("Endi o‘yin matnini kiriting (HTML teglar bilan):")
-    return ADD_TEXT
+    try:
+        name = update.message.text.strip()
+        if not name:
+            await update.message.reply_text("Nom bo‘sh bo‘lishi mumkin emas. Qayta kiriting:")
+            return ADD_NAME
+        if name in games_data:
+            await update.message.reply_text("Bu nom allaqachon mavjud. Boshqa nom kiriting:")
+            return ADD_NAME
+        context.user_data["add_game"]["name"] = name
+        await update.message.reply_text("Endi o‘yin matnini kiriting (HTML teglar bilan):")
+        return ADD_TEXT
+    except Exception as e:
+        logger.error(f"add_game_name xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi. Iltimos, qaytadan urinib ko‘ring yoki /cancel bosing.")
+        return ConversationHandler.END
 
 async def add_game_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    context.user_data["add_game"]["text"] = text
-    await update.message.reply_text(
-        "Matn saqlandi. Endi rasm yuboring (ixtiyoriy) yoki /skip ni bosing."
-    )
-    return ADD_PHOTO
+    try:
+        text = update.message.text
+        context.user_data["add_game"]["text"] = text
+        await update.message.reply_text(
+            "Matn saqlandi. Endi rasm yuboring (ixtiyoriy) yoki /skip ni bosing."
+        )
+        return ADD_PHOTO
+    except Exception as e:
+        logger.error(f"add_game_text xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi. Qaytadan urinib ko‘ring.")
+        return ConversationHandler.END
 
 async def add_game_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.photo:
-        photo_id = update.message.photo[-1].file_id
-        context.user_data["add_game"]["photo_id"] = photo_id
-        await update.message.reply_text("Rasm saqlandi. Endi fayl (APK) yuboring (ixtiyoriy) yoki /skip ni bosing.")
-    else:
-        await update.message.reply_text("Iltimos, rasm yuboring yoki /skip ni bosing.")
-        return ADD_PHOTO
-    return ADD_FILE
+    try:
+        if update.message.photo:
+            photo_id = update.message.photo[-1].file_id
+            context.user_data["add_game"]["photo_id"] = photo_id
+            await update.message.reply_text("Rasm saqlandi. Endi fayl (APK) yuboring (ixtiyoriy) yoki /skip ni bosing.")
+        else:
+            await update.message.reply_text("Iltimos, rasm yuboring yoki /skip ni bosing.")
+            return ADD_PHOTO
+        return ADD_FILE
+    except Exception as e:
+        logger.error(f"add_game_photo xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi. Qaytadan urinib ko‘ring.")
+        return ConversationHandler.END
 
 async def add_game_photo_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["add_game"]["photo_id"] = None
-    await update.message.reply_text("Rasm o‘tkazib yuborildi. Endi fayl (APK) yuboring (ixtiyoriy) yoki /skip ni bosing.")
-    return ADD_FILE
+    try:
+        context.user_data["add_game"]["photo_id"] = None
+        await update.message.reply_text("Rasm o‘tkazib yuborildi. Endi fayl (APK) yuboring (ixtiyoriy) yoki /skip ni bosing.")
+        return ADD_FILE
+    except Exception as e:
+        logger.error(f"add_game_photo_skip xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def add_game_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.document:
-        file_id = update.message.document.file_id
-        context.user_data["add_game"]["file_id"] = file_id
-    else:
-        context.user_data["add_game"]["file_id"] = None
-    await update.message.reply_text(
-        "Fayl saqlandi. Endi tugma matnini kiriting (ixtiyoriy) yoki /skip ni bosing.\n"
-        "Masalan: '🎮 O‘yin sayti'"
-    )
-    return ADD_BUTTON_TEXT
+    try:
+        if update.message.document:
+            file_id = update.message.document.file_id
+            context.user_data["add_game"]["file_id"] = file_id
+        else:
+            context.user_data["add_game"]["file_id"] = None
+        await update.message.reply_text(
+            "Fayl saqlandi. Endi tugma matnini kiriting (ixtiyoriy) yoki /skip ni bosing.\n"
+            "Masalan: '🎮 O‘yin sayti'"
+        )
+        return ADD_BUTTON_TEXT
+    except Exception as e:
+        logger.error(f"add_game_file xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def add_game_file_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["add_game"]["file_id"] = None
-    await update.message.reply_text(
-        "Fayl o‘tkazib yuborildi. Endi tugma matnini kiriting (ixtiyoriy) yoki /skip ni bosing.\n"
-        "Masalan: '🎮 O‘yin sayti'"
-    )
-    return ADD_BUTTON_TEXT
+    try:
+        context.user_data["add_game"]["file_id"] = None
+        await update.message.reply_text(
+            "Fayl o‘tkazib yuborildi. Endi tugma matnini kiriting (ixtiyoriy) yoki /skip ni bosing.\n"
+            "Masalan: '🎮 O‘yin sayti'"
+        )
+        return ADD_BUTTON_TEXT
+    except Exception as e:
+        logger.error(f"add_game_file_skip xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def add_game_button_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    button_text = update.message.text.strip()
-    context.user_data["add_game"]["button_text"] = button_text
-    await update.message.reply_text(
-        "Tugma matni saqlandi. Endi tugma havolasini (URL) kiriting (ixtiyoriy) yoki /skip ni bosing.\n"
-        "Masalan: https://example.com"
-    )
-    return ADD_BUTTON_URL
+    try:
+        button_text = update.message.text.strip()
+        context.user_data["add_game"]["button_text"] = button_text
+        await update.message.reply_text(
+            "Tugma matni saqlandi. Endi tugma havolasini (URL) kiriting (ixtiyoriy) yoki /skip ni bosing.\n"
+            "Masalan: https://example.com"
+        )
+        return ADD_BUTTON_URL
+    except Exception as e:
+        logger.error(f"add_game_button_text xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def add_game_button_text_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["add_game"]["button_text"] = None
-    await update.message.reply_text(
-        "Tugma matni o‘tkazib yuborildi. Endi tugma havolasini (URL) kiriting (ixtiyoriy) yoki /skip ni bosing."
-    )
-    return ADD_BUTTON_URL
+    try:
+        context.user_data["add_game"]["button_text"] = None
+        await update.message.reply_text(
+            "Tugma matni o‘tkazib yuborildi. Endi tugma havolasini (URL) kiriting (ixtiyoriy) yoki /skip ni bosing."
+        )
+        return ADD_BUTTON_URL
+    except Exception as e:
+        logger.error(f"add_game_button_text_skip xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def add_game_button_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    button_url = update.message.text.strip()
-    context.user_data["add_game"]["button_url"] = button_url
-    # Saqlash
-    game_data = context.user_data["add_game"]
-    games_data[game_data["name"]] = {
-        "text": game_data["text"],
-        "photo_id": game_data.get("photo_id"),
-        "file_id": game_data.get("file_id"),
-        "button_text": game_data.get("button_text"),
-        "button_url": game_data.get("button_url"),
-        "views": 0
-    }
-    save_games(games_data)
-    await update.message.reply_text(
-        f"✅ '{game_data['name']}' o‘yini qo‘shildi!",
-        reply_markup=get_admin_keyboard()
-    )
-    context.user_data.pop("add_game", None)
-    return ConversationHandler.END
+    try:
+        button_url = update.message.text.strip()
+        context.user_data["add_game"]["button_url"] = button_url
+        # Saqlash
+        game_data = context.user_data["add_game"]
+        games_data[game_data["name"]] = {
+            "text": game_data["text"],
+            "photo_id": game_data.get("photo_id"),
+            "file_id": game_data.get("file_id"),
+            "button_text": game_data.get("button_text"),
+            "button_url": game_data.get("button_url"),
+            "views": 0
+        }
+        save_games(games_data)
+        await update.message.reply_text(
+            f"✅ '{game_data['name']}' o‘yini qo‘shildi!",
+            reply_markup=get_admin_keyboard()
+        )
+        context.user_data.pop("add_game", None)
+        return ConversationHandler.END
+    except Exception as e:
+        logger.error(f"add_game_button_url xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi. O‘yin saqlanmadi.")
+        return ConversationHandler.END
 
 async def add_game_button_url_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["add_game"]["button_url"] = None
-    game_data = context.user_data["add_game"]
-    games_data[game_data["name"]] = {
-        "text": game_data["text"],
-        "photo_id": game_data.get("photo_id"),
-        "file_id": game_data.get("file_id"),
-        "button_text": game_data.get("button_text"),
-        "button_url": None,
-        "views": 0
-    }
-    save_games(games_data)
-    await update.message.reply_text(
-        f"✅ '{game_data['name']}' o‘yini qo‘shildi!",
-        reply_markup=get_admin_keyboard()
-    )
-    context.user_data.pop("add_game", None)
-    return ConversationHandler.END
+    try:
+        context.user_data["add_game"]["button_url"] = None
+        game_data = context.user_data["add_game"]
+        games_data[game_data["name"]] = {
+            "text": game_data["text"],
+            "photo_id": game_data.get("photo_id"),
+            "file_id": game_data.get("file_id"),
+            "button_text": game_data.get("button_text"),
+            "button_url": None,
+            "views": 0
+        }
+        save_games(games_data)
+        await update.message.reply_text(
+            f"✅ '{game_data['name']}' o‘yini qo‘shildi!",
+            reply_markup=get_admin_keyboard()
+        )
+        context.user_data.pop("add_game", None)
+        return ConversationHandler.END
+    except Exception as e:
+        logger.error(f"add_game_button_url_skip xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi. O‘yin saqlanmadi.")
+        return ConversationHandler.END
 
 async def add_game_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Qo‘shish bekor qilindi.", reply_markup=get_admin_keyboard())
@@ -379,75 +433,110 @@ async def edit_button_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     return EDIT_BUTTON_TEXT
 
 async def edit_button_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    button_text = update.message.text.strip()
-    context.user_data["edit_button_text"] = button_text
-    await update.message.reply_text(
-        "Tugma matni saqlandi. Endi tugma havolasini (URL) kiriting (ixtiyoriy, /skip):"
-    )
-    return EDIT_BUTTON_URL
+    try:
+        button_text = update.message.text.strip()
+        context.user_data["edit_button_text"] = button_text
+        await update.message.reply_text(
+            "Tugma matni saqlandi. Endi tugma havolasini (URL) kiriting (ixtiyoriy, /skip):"
+        )
+        return EDIT_BUTTON_URL
+    except Exception as e:
+        logger.error(f"edit_button_text xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def edit_button_text_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["edit_button_text"] = None
-    await update.message.reply_text("Tugma matni o‘tkazib yuborildi. Endi tugma havolasini (URL) kiriting (ixtiyoriy, /skip):")
-    return EDIT_BUTTON_URL
+    try:
+        context.user_data["edit_button_text"] = None
+        await update.message.reply_text("Tugma matni o‘tkazib yuborildi. Endi tugma havolasini (URL) kiriting (ixtiyoriy, /skip):")
+        return EDIT_BUTTON_URL
+    except Exception as e:
+        logger.error(f"edit_button_text_skip xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def edit_button_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    button_url = update.message.text.strip()
-    game_name = context.user_data["edit_game"]
-    button_text = context.user_data.get("edit_button_text")
-    games_data[game_name]["button_text"] = button_text
-    games_data[game_name]["button_url"] = button_url
-    save_games(games_data)
-    await update.message.reply_text(f"✅ Tugma maʼlumotlari yangilandi.", reply_markup=get_admin_keyboard())
-    context.user_data.pop("edit_game", None)
-    context.user_data.pop("edit_button_text", None)
-    return ConversationHandler.END
+    try:
+        button_url = update.message.text.strip()
+        game_name = context.user_data["edit_game"]
+        button_text = context.user_data.get("edit_button_text")
+        games_data[game_name]["button_text"] = button_text
+        games_data[game_name]["button_url"] = button_url
+        save_games(games_data)
+        await update.message.reply_text(f"✅ Tugma maʼlumotlari yangilandi.", reply_markup=get_admin_keyboard())
+        context.user_data.pop("edit_game", None)
+        context.user_data.pop("edit_button_text", None)
+        return ConversationHandler.END
+    except Exception as e:
+        logger.error(f"edit_button_url xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def edit_button_url_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    game_name = context.user_data["edit_game"]
-    button_text = context.user_data.get("edit_button_text")
-    games_data[game_name]["button_text"] = button_text
-    games_data[game_name]["button_url"] = None
-    save_games(games_data)
-    await update.message.reply_text(f"✅ Tugma maʼlumotlari yangilandi (faqat matn, havolasiz).", reply_markup=get_admin_keyboard())
-    context.user_data.pop("edit_game", None)
-    context.user_data.pop("edit_button_text", None)
-    return ConversationHandler.END
+    try:
+        game_name = context.user_data["edit_game"]
+        button_text = context.user_data.get("edit_button_text")
+        games_data[game_name]["button_text"] = button_text
+        games_data[game_name]["button_url"] = None
+        save_games(games_data)
+        await update.message.reply_text(f"✅ Tugma maʼlumotlari yangilandi (faqat matn, havolasiz).", reply_markup=get_admin_keyboard())
+        context.user_data.pop("edit_game", None)
+        context.user_data.pop("edit_button_text", None)
+        return ConversationHandler.END
+    except Exception as e:
+        logger.error(f"edit_button_url_skip xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def edit_game_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    game_name = context.user_data["edit_game"]
-    new_text = update.message.text
-    games_data[game_name]["text"] = new_text
-    save_games(games_data)
-    await update.message.reply_text(f"✅ Matn yangilandi.", reply_markup=get_admin_keyboard())
-    context.user_data.pop("edit_game", None)
-    return ConversationHandler.END
+    try:
+        game_name = context.user_data["edit_game"]
+        new_text = update.message.text
+        games_data[game_name]["text"] = new_text
+        save_games(games_data)
+        await update.message.reply_text(f"✅ Matn yangilandi.", reply_markup=get_admin_keyboard())
+        context.user_data.pop("edit_game", None)
+        return ConversationHandler.END
+    except Exception as e:
+        logger.error(f"edit_game_text xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def edit_game_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.photo:
-        photo_id = update.message.photo[-1].file_id
-        game_name = context.user_data["edit_game"]
-        games_data[game_name]["photo_id"] = photo_id
-        save_games(games_data)
-        await update.message.reply_text(f"✅ Rasm yangilandi.", reply_markup=get_admin_keyboard())
-    else:
-        await update.message.reply_text("Iltimos, rasm yuboring.")
-        return EDIT_PHOTO
-    context.user_data.pop("edit_game", None)
-    return ConversationHandler.END
+    try:
+        if update.message.photo:
+            photo_id = update.message.photo[-1].file_id
+            game_name = context.user_data["edit_game"]
+            games_data[game_name]["photo_id"] = photo_id
+            save_games(games_data)
+            await update.message.reply_text(f"✅ Rasm yangilandi.", reply_markup=get_admin_keyboard())
+        else:
+            await update.message.reply_text("Iltimos, rasm yuboring.")
+            return EDIT_PHOTO
+        context.user_data.pop("edit_game", None)
+        return ConversationHandler.END
+    except Exception as e:
+        logger.error(f"edit_game_photo xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def edit_game_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.document:
-        file_id = update.message.document.file_id
-        game_name = context.user_data["edit_game"]
-        games_data[game_name]["file_id"] = file_id
-        save_games(games_data)
-        await update.message.reply_text(f"✅ Fayl yangilandi.", reply_markup=get_admin_keyboard())
-    else:
-        await update.message.reply_text("Iltimos, fayl yuboring.")
-        return EDIT_FILE
-    context.user_data.pop("edit_game", None)
-    return ConversationHandler.END
+    try:
+        if update.message.document:
+            file_id = update.message.document.file_id
+            game_name = context.user_data["edit_game"]
+            games_data[game_name]["file_id"] = file_id
+            save_games(games_data)
+            await update.message.reply_text(f"✅ Fayl yangilandi.", reply_markup=get_admin_keyboard())
+        else:
+            await update.message.reply_text("Iltimos, fayl yuboring.")
+            return EDIT_FILE
+        context.user_data.pop("edit_game", None)
+        return ConversationHandler.END
+    except Exception as e:
+        logger.error(f"edit_game_file xatosi: {traceback.format_exc()}")
+        await update.message.reply_text("Xatolik yuz berdi.")
+        return ConversationHandler.END
 
 async def edit_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Tahrirlash bekor qilindi.", reply_markup=get_admin_keyboard())
