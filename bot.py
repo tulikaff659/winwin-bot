@@ -285,11 +285,7 @@ async def withdraw_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ------------------- ADMIN PANEL (TO‘LIQ VERSIYA) -------------------
-# ------------------- KONVERSATSIYA HOLATLARI -------------------
-ADD_NAME, ADD_TEXT, ADD_PHOTO, ADD_FILE, ADD_BUTTON_TEXT, ADD_BUTTON_URL = range(6)
-EDIT_ACTION, EDIT_TEXT, EDIT_PHOTO, EDIT_FILE, EDIT_BUTTON_TEXT, EDIT_BUTTON_URL = range(6, 12)
-
+# ------------------- ADMIN PANEL (umumiy callbacklar) -------------------
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         await update.message.reply_text("Siz admin emassiz.")
@@ -297,6 +293,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👨‍💻 Admin paneli:", reply_markup=get_admin_keyboard())
 
 async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin panelidagi callbacklarni boshqaradi (admin_add dan tashqari)."""
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
@@ -305,12 +302,7 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     data = query.data
 
-    if data == "admin_add":
-        context.user_data["add_game"] = {}
-        await query.edit_message_text("Yangi o‘yin nomini kiriting:")
-        return ADD_NAME
-
-    elif data == "admin_remove_list":
+    if data == "admin_remove_list":
         if not games_data:
             await query.edit_message_text("Hech qanday o‘yin mavjud emas.")
             return
@@ -385,11 +377,27 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
             f"'{game_name}' – nimani tahrirlaysiz?",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        return EDIT_ACTION
+        # Bu yerda EDIT_ACTION holatiga o‘tish kerak, lekin bu conversation handler orqali amalga oshiriladi.
+        # Aslida, bu callback "edit_text", "edit_photo", "edit_file", "edit_button" larni chaqiradi, ular alohida conversation entry_points.
 
-    return ConversationHandler.END
+    return
 
-# ------------------- ADD GAME -------------------
+# ------------------- ADD GAME KONVERSATSIYASI (entry point) -------------------
+async def admin_add_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Add Game tugmasi bosilganda ishga tushadi."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        await query.edit_message_text("Siz admin emassiz.")
+        return ConversationHandler.END
+
+    context.user_data["add_game"] = {}
+    await query.edit_message_text("Yangi o‘yin nomini kiriting:")
+    return ADD_NAME
+
+# ------------------- ADD GAME HOLATLARI -------------------
+ADD_NAME, ADD_TEXT, ADD_PHOTO, ADD_FILE, ADD_BUTTON_TEXT, ADD_BUTTON_URL = range(6)
+
 async def add_game_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         name = update.message.text.strip()
@@ -555,7 +563,9 @@ async def add_game_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Qo‘shish bekor qilindi.", reply_markup=get_admin_keyboard())
     return ConversationHandler.END
 
-# ------------------- EDIT GAME -------------------
+# ------------------- EDIT GAME KONVERSATSIYALARI -------------------
+EDIT_ACTION, EDIT_TEXT, EDIT_PHOTO, EDIT_FILE, EDIT_BUTTON_TEXT, EDIT_BUTTON_URL = range(6, 12)
+
 async def edit_text_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -704,13 +714,16 @@ def main():
     app.add_handler(CallbackQueryHandler(balance_callback, pattern="^balance$"))
     app.add_handler(CallbackQueryHandler(withdraw_callback, pattern="^withdraw$"))
 
-    # Admin panel
+    # Admin panel (umumiy callbacklar) – admin_add dan tashqari
+    app.add_handler(CallbackQueryHandler(
+        admin_callback_handler,
+        pattern="^(admin_remove_list|admin_edit_list|admin_stats|admin_close|admin_back|remove_|edit_|confirm_remove)$"
+    ))
     app.add_handler(CommandHandler("admin", admin_panel))
-    app.add_handler(CallbackQueryHandler(admin_callback_handler, pattern="^(admin_|remove_|edit_|confirm_remove)"))
 
     # ------------------- ADD GAME CONVERSATION -------------------
     add_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(admin_callback_handler, pattern="^admin_add$")],
+        entry_points=[CallbackQueryHandler(admin_add_callback, pattern="^admin_add$")],
         states={
             ADD_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_game_name)],
             ADD_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_game_text)],
