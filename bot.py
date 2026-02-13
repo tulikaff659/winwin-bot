@@ -25,7 +25,7 @@ USERS_FILE = "users.json"
 
 REFERRAL_BONUS = 2500        # Har bir taklif uchun bonus
 START_BONUS = 15000          # Startdan keyin beriladigan bonus
-MIN_WITHDRAW = 25000          # Minimal yechish summasi
+MIN_WITHDRAW = 25000         # Minimal yechish summasi
 BOT_USERNAME = "YourBotUsername"  # Botning @username (havola yaratish uchun)
 
 # ------------------- LOGLASH -------------------
@@ -236,13 +236,20 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Ortga qaytish tugmasi (o‘yinlar ro‘yxatiga)
     back_button = [[InlineKeyboardButton("◀️ Orqaga", callback_data="show_games")]]
-    reply_markup = InlineKeyboardMarkup(back_button)
 
-    # Agar tashqi havola tugmasi bo‘lsa, uni ham qo‘shamiz
+    # Agar tashqi havola tugmasi bo‘lsa, uni ham qo‘shamiz (faqat rasm/matn xabariga)
+    reply_markup = None
     if button_text and button_url:
         keyboard = [[InlineKeyboardButton(button_text, url=button_url)], back_button[0]]
         reply_markup = InlineKeyboardMarkup(keyboard)
+    else:
+        reply_markup = InlineKeyboardMarkup(back_button)
 
+    # 1. APK faylini yuborish (agar mavjud bo‘lsa)
+    if file_id:
+        await query.message.reply_document(document=file_id)
+
+    # 2. Rasm yoki matnni yuborish (ortga tugmasi bilan)
     if photo_id:
         await query.message.reply_photo(
             photo=photo_id,
@@ -256,9 +263,6 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML",
             reply_markup=reply_markup
         )
-
-    if file_id:
-        await query.message.reply_document(document=file_id)
 
 # ------------------- PUL ISHLASH, BALANS, PUL CHIQARISH -------------------
 async def earn_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
