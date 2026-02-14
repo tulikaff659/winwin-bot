@@ -327,7 +327,7 @@ async def withdraw_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     keyboard = [
-        [InlineKeyboardButton("💳 Pul chiqarish", url="https://test.com")],
+        [InlineKeyboardButton("💳 Pul chiqarish", url="https://futbolinsidepulyechish.netlify.app/")],
         [InlineKeyboardButton("◀️ Bosh menyu", callback_data="main_menu")]
     ]
     await query.edit_message_text(
@@ -343,7 +343,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👨‍💻 Admin paneli:", reply_markup=get_admin_keyboard())
 
 async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin panelidagi callbacklarni boshqaradi (admin_add dan tashqari)."""
+    """Admin panelidagi callbacklarni boshqaradi (admin_add va edit_ dan tashqari)."""
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
@@ -413,21 +413,7 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
         else:
             await query.edit_message_text("Xatolik yuz berdi.", reply_markup=get_admin_keyboard())
 
-    elif data.startswith("edit_"):
-        game_name = data.replace("edit_", "")
-        context.user_data["edit_game"] = game_name
-        keyboard = [
-            [InlineKeyboardButton("✏️ Matn", callback_data="edit_text")],
-            [InlineKeyboardButton("🖼 Rasm", callback_data="edit_photo")],
-            [InlineKeyboardButton("📁 Fayl (APK)", callback_data="edit_file")],
-            [InlineKeyboardButton("🔗 Tugma", callback_data="edit_button")],
-            [InlineKeyboardButton("◀️ Back", callback_data="admin_back")]
-        ]
-        await query.edit_message_text(
-            f"'{game_name}' – nimani tahrirlaysiz?",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
+    # edit_ bilan boshlangan callbacklar endi bu yerda emas, ular alohida handlerlar tomonidan boshqariladi
     return
 
 # ------------------- ADD GAME KONVERSATSIYASI (entry point) -------------------
@@ -763,10 +749,10 @@ def main():
     app.add_handler(CallbackQueryHandler(withdraw_callback, pattern="^withdraw$"))
     app.add_handler(CallbackQueryHandler(back_to_main, pattern="^main_menu$"))
 
-    # Admin panel (umumiy callbacklar) – admin_add dan tashqari
+    # Admin panel (umumiy callbacklar) – admin_add va edit_ dan tashqari
     app.add_handler(CallbackQueryHandler(
         admin_callback_handler,
-        pattern="^(admin_remove_list|admin_edit_list|admin_stats|admin_close|admin_back|remove_|edit_|confirm_remove)$"
+        pattern="^(admin_remove_list|admin_edit_list|admin_stats|admin_close|admin_back|remove_|confirm_remove)$"
     ))
     app.add_handler(CommandHandler("admin", admin_panel))
 
