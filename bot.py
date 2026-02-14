@@ -116,15 +116,15 @@ def get_referral_link(user_id: int) -> str:
     """Foydalanuvchi uchun referral havola yaratish."""
     return f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
 
-async def ensure_user(user_id: int, referred_by: Optional[int] = None) -> dict:
-    """Foydalanuvchi maʼlumotlarini yaratish yoki olish."""
+async def ensure_user(user_id: int) -> dict:
+    """Foydalanuvchi maʼlumotlarini yaratish yoki olish (referralni hisobga olmagan holda)."""
     user_id_str = str(user_id)
     if user_id_str not in users_data:
-        # Yangi foydalanuvchi: unikal kod yaratish
+        # Yangi foydalanuvchi: unikal kod yaratish, referred_by = None
         new_code = generate_unique_code()
         users_data[user_id_str] = {
             "balance": 0,
-            "referred_by": referred_by,
+            "referred_by": None,
             "referrals": 0,
             "start_bonus_given": False,
             "withdraw_code": new_code
@@ -155,34 +155,34 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = user.id
     args = context.args
 
-    # Referralni tekshirish
-    referred_by = None
+    # Foydalanuvchini yaratish (referred_by = None)
+    user_data = await ensure_user(user_id)
+
+    # Referralni tekshirish va bonus berish
     if args and args[0].startswith("ref_"):
         try:
             ref_user_id = int(args[0].replace("ref_", ""))
-            if ref_user_id != user_id:
-                referred_by = ref_user_id
+            # O‘zini o‘zi taklif qilmasligi va taklif qiluvchi mavjud bo‘lishi kerak
+            if ref_user_id != user_id and str(ref_user_id) in users_data:
+                # Agar bu foydalanuvchi hali hech kim tomonidan taklif qilinmagan bo‘lsa
+                if user_data.get("referred_by") is None:
+                    # Referralni belgilash
+                    user_data["referred_by"] = ref_user_id
+                    # Taklif qiluvchiga bonus
+                    referer_data = users_data[str(ref_user_id)]
+                    referer_data["balance"] += REFERRAL_BONUS
+                    referer_data["referrals"] = referer_data.get("referrals", 0) + 1
+                    save_users(users_data)
+                    # Bildirishnoma yuborish
+                    try:
+                        await context.bot.send_message(
+                            chat_id=ref_user_id,
+                            text=f"🎉 Sizning taklifingiz orqali yangi foydalanuvchi (@{user.username or user.first_name}) qo‘shildi! Balansingizga {REFERRAL_BONUS} so‘m qo‘shildi. Hozirgi balans: {referer_data['balance']} so‘m."
+                        )
+                    except Exception as e:
+                        logger.error(f"Refererga xabar yuborishda xatolik: {e}")
         except:
             pass
-
-    # Foydalanuvchini yaratish (agar mavjud bo‘lmasa)
-    user_data = await ensure_user(user_id, referred_by)
-
-    # Agar referral bo‘lsa va referer mavjud bo‘lsa, bonus berish
-    if referred_by and str(referred_by) in users_data:
-        referer_data = users_data[str(referred_by)]
-        if user_data.get("referred_by") is None:  # yangi foydalanuvchi
-            user_data["referred_by"] = referred_by
-            referer_data["balance"] += REFERRAL_BONUS
-            referer_data["referrals"] = referer_data.get("referrals", 0) + 1
-            save_users(users_data)
-            try:
-                await context.bot.send_message(
-                    chat_id=referred_by,
-                    text=f"🎉 Sizning taklifingiz orqali yangi foydalanuvchi (@{user.username or user.first_name}) qo‘shildi! Balansingizga {REFERRAL_BONUS} so‘m qo‘shildi. Hozirgi balans: {referer_data['balance']} so‘m."
-                )
-            except Exception as e:
-                logger.error(f"Refererga xabar yuborishda xatolik: {e}")
 
     # Start bonusini rejalashtirish (agar hali berilmagan bo‘lsa)
     if not user_data.get("start_bonus_given", False):
