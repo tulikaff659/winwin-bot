@@ -68,13 +68,12 @@ def is_admin(user_id: int) -> bool:
 def generate_unique_code() -> str:
     """7 xonali unikal kod generatsiya qiladi (mavjud kodlar bilan solishtiradi)."""
     while True:
-        code = f"{random.randint(0, 9999999):07d}"  # 7 xonali, yetakchi nol bilan
+        code = f"{random.randint(0, 9999999):07d}"
         existing_codes = [u.get("withdraw_code") for u in users_data.values()]
         if code not in existing_codes:
             return code
 
 def get_game_keyboard() -> InlineKeyboardMarkup:
-    """O‘yinlar ro‘yxati + bosh menyu tugmasi."""
     keyboard = []
     for game in games_data.keys():
         keyboard.append([InlineKeyboardButton(game, callback_data=f"game_{game}")])
@@ -99,10 +98,6 @@ def get_games_list_keyboard(action_prefix: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 def get_main_keyboard() -> InlineKeyboardMarkup:
-    """Asosiy menyu tugmalari:
-       - 1-qator: O‘yinlar ro‘yxati
-       - 2-qator: Pul ishlash | Balans (yonma-yon)
-    """
     keyboard = [
         [InlineKeyboardButton("🎮 O‘yinlar ro‘yxati", callback_data="show_games")],
         [
@@ -113,14 +108,11 @@ def get_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 def get_referral_link(user_id: int) -> str:
-    """Foydalanuvchi uchun referral havola yaratish."""
     return f"https://t.me/{BOT_USERNAME}?start=ref_{user_id}"
 
 async def ensure_user(user_id: int, referred_by: Optional[int] = None) -> dict:
-    """Foydalanuvchi maʼlumotlarini yaratish yoki olish."""
     user_id_str = str(user_id)
     if user_id_str not in users_data:
-        # Yangi foydalanuvchi: unikal kod yaratish
         new_code = generate_unique_code()
         users_data[user_id_str] = {
             "balance": 0,
@@ -133,8 +125,7 @@ async def ensure_user(user_id: int, referred_by: Optional[int] = None) -> dict:
     return users_data[user_id_str]
 
 async def give_start_bonus(user_id: int, context: ContextTypes.DEFAULT_TYPE):
-    """1-2 daqiqadan so‘ng start bonusini berish."""
-    await asyncio.sleep(90)  # 1.5 daqiqa
+    await asyncio.sleep(90)
     user_id_str = str(user_id)
     if user_id_str in users_data and not users_data[user_id_str].get("start_bonus_given", False):
         users_data[user_id_str]["balance"] += START_BONUS
@@ -150,12 +141,10 @@ async def give_start_bonus(user_id: int, context: ContextTypes.DEFAULT_TYPE):
 
 # ------------------- START HANDLER -------------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start komandasi – bitta xabar va barcha tugmalar."""
     user = update.effective_user
     user_id = user.id
     args = context.args
 
-    # Referralni tekshirish
     referred_by = None
     if args and args[0].startswith("ref_"):
         try:
@@ -165,13 +154,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
-    # Foydalanuvchini yaratish (agar mavjud bo‘lmasa)
     user_data = await ensure_user(user_id, referred_by)
 
-    # Agar referral bo‘lsa va referer mavjud bo‘lsa, bonus berish
     if referred_by and str(referred_by) in users_data:
         referer_data = users_data[str(referred_by)]
-        if user_data.get("referred_by") is None:  # yangi foydalanuvchi
+        if user_data.get("referred_by") is None:
             user_data["referred_by"] = referred_by
             referer_data["balance"] += REFERRAL_BONUS
             referer_data["referrals"] = referer_data.get("referrals", 0) + 1
@@ -184,11 +171,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 logger.error(f"Refererga xabar yuborishda xatolik: {e}")
 
-    # Start bonusini rejalashtirish (agar hali berilmagan bo‘lsa)
     if not user_data.get("start_bonus_given", False):
         asyncio.create_task(give_start_bonus(user_id, context))
 
-    # Bitta xabar – barcha tugmalar bilan
     text = (
         "🎰 *WinWin Bukmekeriga xush kelibsiz!* 🎰\n\n"
         "🔥 *Premium bonuslar* va har hafta yangi yutuqlar sizni kutmoqda!\n"
@@ -206,7 +191,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ------------------- BOSH MENYUGA QAYTISH -------------------
 async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Bosh menyu tugmasi bosilganda yangi xabar yuboradi."""
     query = update.callback_query
     await query.answer()
     text = (
@@ -255,10 +239,8 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     button_text = game.get("button_text")
     button_url = game.get("button_url")
 
-    # Bosh menyuga qaytish tugmasi
     back_button = [[InlineKeyboardButton("◀️ Bosh menyu", callback_data="main_menu")]]
 
-    # Agar tashqi havola tugmasi bo‘lsa, uni ham qo‘shamiz (faqat rasm/matn xabariga)
     reply_markup = None
     if button_text and button_url:
         keyboard = [[InlineKeyboardButton(button_text, url=button_url)], back_button[0]]
@@ -266,11 +248,9 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         reply_markup = InlineKeyboardMarkup(back_button)
 
-    # 1. APK faylini yuborish (agar mavjud bo‘lsa)
     if file_id:
         await query.message.reply_document(document=file_id)
 
-    # 2. Rasm yoki matnni yuborish (bosh menyu tugmasi bilan)
     if photo_id:
         await query.message.reply_photo(
             photo=photo_id,
@@ -336,9 +316,8 @@ async def balance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ------------------- PUL CHIQARISH (YANGI SODDA VERSIYA) -------------------
+# ------------------- PUL CHIQARISH -------------------
 async def withdraw_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Pul chiqarish tugmasi – kodni ko‘rsatadi va saytga yo‘naltiradi."""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -369,7 +348,7 @@ async def withdraw_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ------------------- ADMIN PANEL (umumiy callbacklar) -------------------
+# ------------------- ADMIN PANEL (asosiy) -------------------
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         await update.message.reply_text("Siz admin emassiz.")
@@ -377,7 +356,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👨‍💻 Admin paneli:", reply_markup=get_admin_keyboard())
 
 async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin panelidagi callbacklarni boshqaradi (admin_add va edit_ dan tashqari)."""
+    """Admin panelidagi callbacklarni boshqaradi (add/edit dan tashqari)."""
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
@@ -447,14 +426,13 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
         else:
             await query.edit_message_text("Xatolik yuz berdi.", reply_markup=get_admin_keyboard())
 
-    # edit_ bilan boshlangan callbacklar bu yerda emas
+    # edit_ bilan boshlangan callbacklar bu yerda qayta ishlanmaydi, ular alohida conversation handlerlarda
     return
 
 # ------------------- ADD GAME KONVERSATSIYASI -------------------
 ADD_NAME, ADD_TEXT, ADD_PHOTO, ADD_FILE, ADD_BUTTON_TEXT, ADD_BUTTON_URL = range(6)
 
 async def admin_add_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Add Game tugmasi bosilganda ishga tushadi."""
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
@@ -580,7 +558,6 @@ async def add_game_button_url(update: Update, context: ContextTypes.DEFAULT_TYPE
     try:
         button_url = update.message.text.strip()
         context.user_data["add_game"]["button_url"] = button_url
-        # Saqlash
         game_data = context.user_data["add_game"]
         games_data[game_data["name"]] = {
             "text": game_data["text"],
@@ -782,10 +759,10 @@ def main():
     app.add_handler(CallbackQueryHandler(withdraw_callback, pattern="^withdraw$"))
     app.add_handler(CallbackQueryHandler(back_to_main, pattern="^main_menu$"))
 
-    # Admin panel (umumiy callbacklar)
+    # Admin panel (umumiy callbacklar) – faqat aniq patternlar
     app.add_handler(CallbackQueryHandler(
         admin_callback_handler,
-        pattern="^(admin_remove_list|admin_edit_list|admin_stats|admin_close|admin_back|remove_|confirm_remove)$"
+        pattern="^(admin_remove_list|admin_edit_list|admin_stats|admin_close|admin_back|remove_.*|confirm_remove)$"
     ))
     app.add_handler(CommandHandler("admin", admin_panel))
 
