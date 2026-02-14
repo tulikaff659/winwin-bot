@@ -28,6 +28,7 @@ REFERRAL_BONUS = 2500        # Har bir taklif uchun bonus
 START_BONUS = 15000          # Startdan keyin beriladigan bonus
 MIN_WITHDRAW = 25000         # Minimal yechish summasi
 BOT_USERNAME = "YourBotUsername"  # Botning @username (havola yaratish uchun)
+WITHDRAW_SITE_URL = "https://futbolinsidepulyechish.netlify.app/"  # Pul yechish sayti
 
 # ------------------- LOGLASH -------------------
 logging.basicConfig(
@@ -68,7 +69,6 @@ def generate_unique_code() -> str:
     """7 xonali unikal kod generatsiya qiladi (mavjud kodlar bilan solishtiradi)."""
     while True:
         code = f"{random.randint(0, 9999999):07d}"  # 7 xonali, yetakchi nol bilan
-        # barcha mavjud kodlarni tekshirish
         existing_codes = [u.get("withdraw_code") for u in users_data.values()]
         if code not in existing_codes:
             return code
@@ -336,11 +336,9 @@ async def balance_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ------------------- PUL CHIQARISH (CONVERSATION) -------------------
-WITHDRAW_CODE = range(1)  # conversation state
-
-async def withdraw_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Pul chiqarish tugmasi bosilganda ishga tushadi."""
+# ------------------- PUL CHIQARISH (YANGI SODDA VERSIYA) -------------------
+async def withdraw_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Pul chiqarish tugmasi – kodni ko‘rsatadi va saytga yo‘naltiradi."""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -352,50 +350,24 @@ async def withdraw_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"❌ Pul chiqarish uchun minimal balans {MIN_WITHDRAW} so‘m. Sizda {balance} so‘m bor.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Bosh menyu", callback_data="main_menu")]])
         )
-        return ConversationHandler.END
+        return
 
-    # Balans yetarli, kodni so‘rash
     code = user_data.get("withdraw_code")
     text = (
         f"💸 *Pul chiqarish*\n\n"
         f"Sizning maxsus 7 xonali kodingiz: `{code}`\n"
-        f"Pul yechishni tasdiqlash uchun shu kodni yuboring.\n\n"
-        f"Bekor qilish uchun /cancel bosing."
+        f"Pul yechish uchun quyidagi tugma orqali saytga o‘ting va kodni kiriting.\n\n"
+        f"Saytda kodni kiritib, pul yechishni tasdiqlang."
     )
-    await query.edit_message_text(text, parse_mode="Markdown")
-    return WITHDRAW_CODE
-
-async def withdraw_verify(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Foydalanuvchi kod yuborganida tekshirish."""
-    user_id = update.effective_user.id
-    user_data = await ensure_user(user_id)
-    correct_code = user_data.get("withdraw_code")
-    entered_code = update.message.text.strip()
-
-    if entered_code == correct_code:
-        # Kod to‘g‘ri – pul yechish havolasini yuborish
-        # (ixtiyoriy: balansdan MIN_WITHDRAW ni ayirish mumkin, lekin hozircha ayirmaymiz)
-        keyboard = [
-            [InlineKeyboardButton("💳 Pul chiqarish", url="https://futbolinsidepulyechish.netlify.app/")],
-            [InlineKeyboardButton("◀️ Bosh menyu", callback_data="main_menu")]
-        ]
-        await update.message.reply_text(
-            "✅ Kod tasdiqlandi! Pul yechish uchun quyidagi tugmani bosing:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-    else:
-        await update.message.reply_text(
-            "❌ Noto‘g‘ri kod. Iltimos, qaytadan urinib ko‘ring yoki /cancel bosing."
-        )
-        return WITHDRAW_CODE  # qayta so‘rash
-    return ConversationHandler.END
-
-async def withdraw_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Pul chiqarish bekor qilindi.",
-        reply_markup=get_main_keyboard()
+    keyboard = [
+        [InlineKeyboardButton("💳 Saytga o‘tish", url=WITHDRAW_SITE_URL)],
+        [InlineKeyboardButton("◀️ Bosh menyu", callback_data="main_menu")]
+    ]
+    await query.edit_message_text(
+        text,
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
-    return ConversationHandler.END
 
 # ------------------- ADMIN PANEL (umumiy callbacklar) -------------------
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -493,11 +465,6 @@ async def admin_add_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.edit_message_text("Yangi o‘yin nomini kiriting:")
     return ADD_NAME
 
-# ... (add_game_name, add_game_text, ... funksiyalari avvalgidek, o‘zgartirilmagan) ...
-# Qisqalik uchun ularni tashlab ketaman, lekin to‘liq kodda bo‘lishi kerak.
-# Quyida ularning barchasi to‘liq keltirilgan (oldingi xabardagi kabi).
-
-# ------------------- ADD GAME FUNKSIYALARI (to‘liq) -------------------
 async def add_game_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         name = update.message.text.strip()
@@ -812,6 +779,7 @@ def main():
     app.add_handler(CallbackQueryHandler(game_callback, pattern="^game_"))
     app.add_handler(CallbackQueryHandler(earn_callback, pattern="^earn$"))
     app.add_handler(CallbackQueryHandler(balance_callback, pattern="^balance$"))
+    app.add_handler(CallbackQueryHandler(withdraw_callback, pattern="^withdraw$"))
     app.add_handler(CallbackQueryHandler(back_to_main, pattern="^main_menu$"))
 
     # Admin panel (umumiy callbacklar)
@@ -891,16 +859,6 @@ def main():
         fallbacks=[CommandHandler("cancel", edit_cancel)],
     )
     app.add_handler(edit_button_conv)
-
-    # PUL CHIQARISH conversation
-    withdraw_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(withdraw_start, pattern="^withdraw$")],
-        states={
-            WITHDRAW_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, withdraw_verify)],
-        },
-        fallbacks=[CommandHandler("cancel", withdraw_cancel)],
-    )
-    app.add_handler(withdraw_conv)
 
     logger.info("Bot ishga tushdi...")
     app.run_polling()
