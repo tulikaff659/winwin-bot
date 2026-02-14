@@ -177,14 +177,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Bitta xabar – barcha tugmalar bilan
     text = (
-        "🎰 *WinWin Bukmekeriga xush kelibsiz!*\n\n"
-        "🎯 Ishonchli o‘yinlar tahlili\n"
-        "📊 Slot o‘yinlarini analiz qilish\n"
-        "💡 Qayerda, qachon va qanday g‘alaba qilish sirlari\n\n"
-        "👇 Quyidagi tugmalardan foydalaning:\n\n"
-        "🎮 *O‘yinlar ro‘yxati* – barcha o‘yinlarni ko‘rish\n"
-        "💰 *Pul ishlash* – do‘stlaringizni taklif qiling va bonus oling\n"
-        "💵 *Balans* – hisobingizdagi mablag‘ni ko‘ring va yechib oling"
+        "🎰 *WinWin Bukmekeriga xush kelibsiz!* 🎰\n\n"
+        "🔥 *Premium bonuslar* va har hafta yangi yutuqlar sizni kutmoqda!\n"
+        "📊 *O‘yinlar uchun maxsus yutish strategiyalari* va *signal* xizmati orqali g‘alaba qozonish imkoniyatingizni oshiring.\n\n"
+        "💰 Bu yerda nafaqat o‘ynab, balki *pul ishlashingiz* mumkin:\n"
+        "– Do‘stlaringizni taklif qiling va har bir taklif uchun *2500 so‘m* oling.\n"
+        "– Start bonus sifatida *15000 so‘m* hamyoningizga tushadi.\n\n"
+        "👇 Quyidagi tugmalar orqali imkoniyatlarni kashf eting:"
     )
     await update.message.reply_text(
         text,
@@ -197,9 +196,17 @@ async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Bosh menyu tugmasi bosilganda yangi xabar yuboradi."""
     query = update.callback_query
     await query.answer()
-    # Eski xabarni tahrirlash o‘rniga yangi xabar yuboramiz
+    text = (
+        "🎰 *WinWin Bukmekeriga xush kelibsiz!* 🎰\n\n"
+        "🔥 *Premium bonuslar* va har hafta yangi yutuqlar sizni kutmoqda!\n"
+        "📊 *O‘yinlar uchun maxsus yutish strategiyalari* va *signal* xizmati orqali g‘alaba qozonish imkoniyatingizni oshiring.\n\n"
+        "💰 Bu yerda nafaqat o‘ynab, balki *pul ishlashingiz* mumkin:\n"
+        "– Do‘stlaringizni taklif qiling va har bir taklif uchun *2500 so‘m* oling.\n"
+        "– Start bonus sifatida *15000 so‘m* hamyoningizga tushadi.\n\n"
+        "👇 Quyidagi tugmalar orqali imkoniyatlarni kashf eting:"
+    )
     await query.message.reply_text(
-        "🏠 *Bosh menyu*",
+        text,
         parse_mode="Markdown",
         reply_markup=get_main_keyboard()
     )
